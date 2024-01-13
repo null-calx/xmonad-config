@@ -328,7 +328,7 @@ use [[/usr/include/X11/XF86keysym.h][XF86keysym.h]] to find keysym
 
 #+BEGIN_SRC haskell
   main = do
-    xmproc <- spawnPipe "xmobar -x 0 ~/.config/xmobar/xmobar.hs"
+    xmproc <- spawnPipe "xmobar -x 0 xmobar.hs"
     xmonad $ docks def {
       terminal = xmTerm,
       focusFollowsMouse = xmFocusFollowsMouse,
