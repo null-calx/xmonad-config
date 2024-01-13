@@ -13,6 +13,8 @@
   import XMonad.Hooks.DynamicLog
   import XMonad.Actions.CycleWS
   import XMonad.Layout.ToggleLayouts
+  import XMonad.Prompt
+  import XMonad.Prompt.ConfirmPrompt
 
   import qualified XMonad.StackSet as W
   import qualified Data.Map as M
@@ -43,6 +45,14 @@
 
   -- home address
   xmHome = "/home/yoimiya"
+
+  -- prompt
+  xmPromptConfig = def
+      { position          = Top
+      , alwaysHighlight   = True
+      , promptBorderWidth = 0
+      , font              = "xft:monospace:size=9"
+      }
 #+END_SRC
 
 * Keybindings
@@ -142,7 +152,7 @@ use [[/usr/include/X11/XF86keysym.h][XF86keysym.h]] to find keysym
 
     -- quit xmonad
     , ((modm .|. controlMask, xK_q),
-       io (exitWith ExitSuccess))
+       confirmPrompt xmPromptConfig "exit" (io exitSuccess))
 
     ] ++
 
