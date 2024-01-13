@@ -11,7 +11,8 @@
   import XMonad.Util.SpawnOnce
   import XMonad.Hooks.ManageDocks
   import XMonad.Hooks.DynamicLog
-  import XMonad.Actions.CycleWS 
+  import XMonad.Actions.CycleWS
+  import XMonad.Layout.ToggleLayouts
 
   import qualified XMonad.StackSet as W
   import qualified Data.Map as M
@@ -130,6 +131,10 @@ use [[/usr/include/X11/XF86keysym.h][XF86keysym.h]] to find keysym
     -- toggle xmobar sturts
     , ((modm, xK_b),
        sendMessage ToggleStruts)
+
+    -- fullscreen
+    , ((modm, xK_f),
+       sendMessage (Toggle "Full"))
 
     -- restart xmonad
     , ((modm, xK_q),
@@ -275,7 +280,7 @@ use [[/usr/include/X11/XF86keysym.h][XF86keysym.h]] to find keysym
 * Layout
 
 #+BEGIN_SRC haskell
-  xmLayoutHook = avoidStruts (tiled ||| Mirror tiled) ||| Full
+  xmLayoutHook = toggleLayouts Full $ avoidStruts (tiled ||| Mirror tiled)
     where
       -- master stack layout, partitions the screeen into 2 panes
       tiled = Tall nmaster delta ratio
@@ -330,6 +335,7 @@ use [[/usr/include/X11/XF86keysym.h][XF86keysym.h]] to find keysym
   main = do
     xmproc <- spawnPipe "xmobar -x 0 ~/.config/xmonad/xmobar.hs"
     xmonad $ docks def {
+      -- variables
       terminal = xmTerm,
       focusFollowsMouse = xmFocusFollowsMouse,
       clickJustFocuses = xmClickJustFocuses,
@@ -337,9 +343,11 @@ use [[/usr/include/X11/XF86keysym.h][XF86keysym.h]] to find keysym
       modMask = xmModMask,
       workspaces = xmWorkspaces,
 
+      -- bindings
       keys = xmKeys,
       mouseBindings = xmMouseBindings,
 
+      -- hooks
       layoutHook = xmLayoutHook,
       logHook = xmLogHook xmproc,
       startupHook = xmStartupHook
