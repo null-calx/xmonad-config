@@ -1,0 +1,347 @@
+#+TITLE: XMonad config
+#+AUTHOR: calx
+#+PROPERTY: header-args :tangle xmonad.hs
+
+* Imports
+
+#+BEGIN_SRC haskell
+  import XMonad
+  import System.Exit
+  import XMonad.Util.Run
+  import XMonad.Util.SpawnOnce
+  import XMonad.Hooks.ManageDocks
+  import XMonad.Hooks.DynamicLog
+  import XMonad.Actions.CycleWS 
+
+  import qualified XMonad.StackSet as W
+  import qualified Data.Map as M
+#+END_SRC
+
+* Variables
+
+#+BEGIN_SRC haskell
+  -- default terminal to use
+  xmTerm = "alacritty"
+
+  -- no borders
+  xmBorderWidth = 0
+
+  -- focus follows mouse
+  xmFocusFollowsMouse :: Bool
+  xmFocusFollowsMouse = True
+
+  -- whether focusing click is not passed
+  xmClickJustFocuses :: Bool
+  xmClickJustFocuses = False
+
+  -- use super key
+  xmModMask = mod4Mask
+
+  -- workspaces
+  xmWorkspaces = [ "1", "2", "3", "4", "5", "6", "7", "8", "9", "0" ]
+
+  -- home address
+  xmHome = "/home/yoimiya"
+#+END_SRC
+
+* Keybindings
+
+use [[/usr/include/X11/XF86keysym.h][XF86keysym.h]] to find keysym
+
+#+BEGIN_SRC haskell
+  xmKeys conf@(XConfig {XMonad.modMask = modm}) = M.fromList $
+
+    --
+    -- basic configuration
+    --
+
+    -- launch terminal
+    [ ((modm, xK_Return),
+       spawn $ XMonad.terminal conf)
+
+    -- launch dmenu
+    , ((modm, xK_p),
+       spawn "dmenu_run")
+
+    -- close focused window
+    , ((modm .|. shiftMask, xK_c),
+       kill)
+
+    -- rotate through available layouts
+    , ((modm, xK_space),
+       sendMessage NextLayout)
+
+    -- reset layout
+    , ((modm .|. shiftMask, xK_space),
+       setLayout $ XMonad.layoutHook conf)
+
+    -- resize current window
+    , ((modm, xK_n),
+       refresh)
+
+    -- move focus to next window
+    , ((modm, xK_Tab),
+       windows W.focusDown)
+
+    -- move focus to next window
+    , ((modm, xK_j),
+       windows W.focusDown)
+
+    -- move focus to previous window
+    , ((modm, xK_k),
+       windows W.focusUp)
+
+    -- swap with next window
+    , ((modm .|. shiftMask, xK_j),
+       windows W.swapDown)
+
+    -- swap with previous window
+    , ((modm .|. shiftMask, xK_k),
+       windows W.swapUp)
+
+    -- move focus to master window
+    , ((modm, xK_m),
+       windows W.focusMaster)
+
+    -- swap with master window
+    , ((modm .|. shiftMask, xK_m),
+       windows W.swapMaster)
+
+    -- shrink master area
+    , ((modm, xK_h),
+       sendMessage Shrink)
+
+    -- expand master area
+    , ((modm, xK_l),
+       sendMessage Expand)
+
+    -- push window back to tiling
+    , ((modm, xK_t),
+       withFocused $ windows . W.sink)
+
+    -- increment number of windows in master area
+    , ((modm, xK_comma),
+       sendMessage (IncMasterN 1))
+
+    -- deincrement number of windows in master area
+    , ((modm, xK_period),
+       sendMessage (IncMasterN (-1)))
+
+    -- toggle xmobar sturts
+    , ((modm, xK_b),
+       sendMessage ToggleStruts)
+
+    -- restart xmonad
+    , ((modm, xK_q),
+       spawn "xmoand --recompile; xmonad --restart")
+
+    -- quit xmonad
+    , ((modm .|. controlMask, xK_q),
+       io (exitWith ExitSuccess))
+
+    ] ++
+
+    --
+    -- workspace setup
+    --
+
+    -- switch to workspace and send to workspace
+    [((m .|. modm, k), windows $ f i)
+    | (i, k) <- zip (XMonad.workspaces conf) ([xK_1 .. xK_9] ++ [xK_0])
+    , (f, m) <- [(W.greedyView, 0), (W.shift, shiftMask)]
+
+    ] ++
+
+    -- switch to prev workspace
+    [ ((modm, xK_bracketleft),
+       moveTo Prev (Not emptyWS))
+
+    -- switch to next workspace
+    , ((modm, xK_bracketright),
+       moveTo Next (Not emptyWS))
+
+    ] ++
+
+    --
+    -- system control
+    --
+
+    -- brightness and volume control
+    [((m, k), spawn (f d))
+    | (m, d) <- [(0, "10"), (shiftMask, "2")]
+    , (k, f) <-
+
+      -- brighten up
+      [ (0x1008FF02, -- XF86XK_MonBrightnessUp
+	  (\ d -> "brightnessctl set +" ++ d ++ "%"))
+
+      -- brighten down
+      , (0x1008FF03, -- XF86XK_MonBrightnessDown
+	  (\ d -> "brightnessctl set " ++ d ++ "%-"))
+
+      -- volume up
+      , (0x1008FF13, -- XF86XK_AudioRaiseVolume
+	  (\ d -> "pactl set-sink-volume @DEFAULT_SINK@ +" ++ d ++ "%"))
+
+      -- volume down
+      , (0x1008FF11, -- XF86XK_AudioLowerVolume
+	  (\ d -> "pactl set-sink-volume @DEFAULT_SINK@ -" ++ d ++ "%"))
+      ]
+
+    ] ++
+
+    -- mute volume
+    [ ((0, 0x1008FF12), -- XF86XK_AudioMute
+       spawn "pactl set-sink-mute @DEFAULT_SINK@ toggle")
+
+    -- force mute volume
+    , ((controlMask, 0x1008FF12), -- XF86XK_AudioMute
+       spawn "pactl set-sink-mute @DEFAULT_SINK@ yes")
+
+    ] ++
+
+    -- player play-pause
+    [ ((0, 0x1008FF14), -- XF86XK_AudioPlay
+       spawn "playerctl play-pause")
+
+    -- player previous
+    , ((0, 0x1008FF16), -- XF86XK_AudioPrev
+       spawn "playerctl previous")
+
+    -- player next
+    , ((0, 0x1008FF17), -- XF86XK_AudioNextt
+       spawn "playerctl next")
+
+    ] ++
+
+    -- print screen
+    [ ((0, xK_Print),
+       spawn $ "scrot -f " ++ xmHome ++
+       "/captures/%Y-%m-%d_%H:%M:%S.png")
+
+    -- print script select region
+    , ((shiftMask, xK_Print),
+       spawn $ "scrot -s -f " ++ xmHome ++
+       "/captures/%Y-%m-%d_%H:%M:%S.png")
+
+    -- print screen select window
+    , ((controlMask, xK_Print),
+       spawn $ "scrot -u -f " ++ xmHome ++
+       "/captures/\\$W.%Y-%m-%d_%H:%M:%S.png")
+
+    ] ++
+
+    --
+    -- personal config
+    --
+
+    -- run emacsclient
+    [ ((modm, xK_z),
+       spawn "emacsclient -c -a 'emacs'")
+
+    -- run emacs
+    , ((modm .|. shiftMask, xK_z),
+       spawn "emacs")
+
+    -- open rofi
+    , ((modm, xK_c),
+       spawn "rofi -show drun")
+
+    ]
+#+END_SRC
+
+* Mouse Bindings
+
+#+BEGIN_SRC haskell
+  xmMouseBindings (XConfig {XMonad.modMask = modm}) = M.fromList $
+
+    -- set window to float, and move by drag
+    [ ((modm, button1),
+	(\w -> focus w >> mouseMoveWindow w
+		       >> windows W.shiftMaster))
+
+    -- move the window to top of the stack
+    , ((modm, button2),
+	(\w -> focus w >> windows W.shiftMaster))
+
+    -- set window to float, and resize
+    , ((modm, button3),
+	(\w -> focus w >> mouseResizeWindow w
+		       >> windows W.shiftMaster))
+
+    ]
+#+END_SRC
+
+* Layout
+
+#+BEGIN_SRC haskell
+  xmLayoutHook = avoidStruts (tiled ||| Mirror tiled) ||| Full
+    where
+      -- master stack layout, partitions the screeen into 2 panes
+      tiled = Tall nmaster delta ratio
+
+      -- number of windows in master pane
+      nmaster = 1
+
+      -- proportion of screen occupied by master pane
+      ratio = 1/2
+
+      -- percent of screen to increment or deincrement when resizing
+      delta = 3/100
+#+END_SRC
+
+* Log Hook
+
+[[https://xmonad.github.io/xmonad-docs/xmonad-contrib/XMonad-Hooks-StatusBar-PP.html]]
+
+#+BEGIN_SRC haskell
+  xmLogHook xmproc = dynamicLogWithPP xmobarPP
+		     { ppOutput        = hPutStrLn xmproc
+		     , ppCurrent       = xmobarColor "#4CAF50" "" . wrap "{" "}"
+		     , ppHidden        = \x ->
+			 xmobarAction ("xdotool key Super+" ++ x) "1" $
+			 wrap " " " " $
+			 xmobarColor "#F0E68C" "" x
+		     , ppTitle         = xmobarColor "#2196F3" "" . shorten 80
+		     , ppTitleSanitize = xmobarStrip
+		     , ppSep           = " | "
+		     , ppWsSep         = ""
+		     , ppOrder         = \(ws:_:t:_) ->
+			 [ xmobarAction "xdotool key Super+bracketleft" "4" $
+			   xmobarAction "xdotool key Super+bracketright" "5" $
+			   ws
+			 , t
+			 ]
+		     }
+#+END_SRC
+
+* Startup Hook
+
+#+BEGIN_SRC haskell
+  xmStartupHook = do
+    spawnOnce "picom -b"
+    spawnOnce "~/.fehbg"
+    spawnOnce "dunst"
+#+END_SRC
+
+* Main body
+
+#+BEGIN_SRC haskell
+  main = do
+    xmproc <- spawnPipe "xmobar -x 0 ~/.config/xmobar/xmobar.hs"
+    xmonad $ docks def {
+      terminal = xmTerm,
+      focusFollowsMouse = xmFocusFollowsMouse,
+      clickJustFocuses = xmClickJustFocuses,
+      borderWidth = xmBorderWidth,
+      modMask = xmModMask,
+      workspaces = xmWorkspaces,
+
+      keys = xmKeys,
+      mouseBindings = xmMouseBindings,
+
+      layoutHook = xmLayoutHook,
+      logHook = xmLogHook xmproc,
+      startupHook = xmStartupHook
+      }
+#+END_SRC
