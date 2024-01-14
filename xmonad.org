@@ -6,16 +6,32 @@
 
 #+BEGIN_SRC haskell
   import XMonad
-  import System.Exit
   import XMonad.Util.Run
+    (spawnPipe, hPutStrLn)
   import XMonad.Util.SpawnOnce
+    (spawnOnce)
   import XMonad.Hooks.ManageDocks
+    (docks, avoidStruts, ToggleStruts(..))
   import XMonad.Hooks.DynamicLog
+    (dynamicLogWithPP, ppOutput, ppCurrent, ppHidden,
+     ppTitle, ppTitleSanitize, ppSep, ppWsSep, ppOrder,
+     xmobarPP, xmobarColor, xmobarAction, xmobarAction, xmobarStrip,
+     wrap, shorten)
   import XMonad.Actions.CycleWS
+    (moveTo, emptyWS, WSType(..))
   import XMonad.Layout.ToggleLayouts
+    (toggleLayouts, ToggleLayout(..))
   import XMonad.Hooks.EwmhDesktops
+    (ewmhFullscreen, ewmh)
   import XMonad.Prompt
+    (position, alwaysHighlight, promptBorderWidth, font, XPPosition(..))
   import XMonad.Prompt.ConfirmPrompt
+    (confirmPrompt)
+
+  import XMonad.Util.Types
+    (Direction1D(..))
+
+  import System.Exit (exitSuccess)
 
   import qualified XMonad.StackSet as W
   import qualified Data.Map as M
