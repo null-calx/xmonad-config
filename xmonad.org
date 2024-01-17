@@ -14,19 +14,23 @@
     (docks, avoidStruts, ToggleStruts(..))
   import XMonad.Hooks.DynamicLog
     (dynamicLogWithPP, ppOutput, ppCurrent, ppHidden,
-     ppTitle, ppTitleSanitize, ppSep, ppWsSep, ppOrder,
+     ppTitle, ppTitleSanitize, ppSep, ppWsSep, ppOrder, ppUrgent,
      xmobarPP, xmobarColor, xmobarAction, xmobarAction, xmobarStrip,
      wrap, shorten)
   import XMonad.Actions.CycleWS
-    (moveTo, emptyWS, WSType(..))
+    (moveTo, emptyWS, toggleWS, screenBy, WSType(..))
   import XMonad.Layout.ToggleLayouts
     (toggleLayouts, ToggleLayout(..))
   import XMonad.Hooks.EwmhDesktops
     (ewmhFullscreen, ewmh)
+  import XMonad.Util.Dmenu
+    (dmenu, dmenuMap)
   import XMonad.Prompt
     (position, alwaysHighlight, promptBorderWidth, font, XPPosition(..))
   import XMonad.Prompt.ConfirmPrompt
     (confirmPrompt)
+  import XMonad.Hooks.WindowSwallowing
+    (swallowEventHook)
 
   import XMonad.Util.Types
     (Direction1D(..))
@@ -42,6 +46,9 @@
 #+BEGIN_SRC haskell
   -- default terminal to use
   xmTerm = "alacritty"
+
+  -- run cmd in defautl terminal
+  xmTermExec cmd = xmTerm ++ " -e " ++ cmd
 
   -- no borders
   xmBorderWidth = 0
@@ -62,11 +69,11 @@
 
   -- prompt
   xmPromptConfig = def
-      { position          = Top
-      , alwaysHighlight   = True
-      , promptBorderWidth = 0
-      , font              = "xft:monospace:size=9"
-      }
+    { position          = Top
+    , alwaysHighlight   = True
+    , promptBorderWidth = 0
+    , font              = "xft:monospace:size=9"
+    }
 #+END_SRC
 
 * Keybindings
@@ -156,13 +163,28 @@ use [[/usr/include/X11/XF86keysym.h][XF86keysym.h]] to find keysym
     , ((modm, xK_b),
        sendMessage ToggleStruts)
 
+    -- shift focus to next screen (using do)
+    -- , ((modm, xK_o),
+    --   do
+    --     sc <- screenBy 1
+    --     (Just ws) <- screenWorkspace sc
+    --     (windows . W.view) ws)
+
+    -- shift focus to next screen
+    , ((modm, xK_o),
+       screenBy 1 >>= screenWorkspace >>= flip whenJust (windows . W.view))
+
+    -- shift window to next screen
+    , ((modm .|. shiftMask, xK_o),
+       screenBy 1 >>= screenWorkspace >>= flip whenJust (windows . W.shift))
+
     -- fullscreen
     , ((modm, xK_f),
        sendMessage (Toggle "Full"))
 
     -- restart xmonad
     , ((modm, xK_q),
-       spawn "xmoand --recompile; xmonad --restart")
+       spawn "xmonad --recompile; xmonad --restart")
 
     -- quit xmonad
     , ((modm .|. controlMask, xK_q),
@@ -188,6 +210,10 @@ use [[/usr/include/X11/XF86keysym.h][XF86keysym.h]] to find keysym
     -- switch to next workspace
     , ((modm, xK_bracketright),
        moveTo Next (Not emptyWS))
+
+    -- switch to last workspace
+    , ((modm, xK_backslash),
+       toggleWS)
 
     ] ++
 
@@ -245,15 +271,15 @@ use [[/usr/include/X11/XF86keysym.h][XF86keysym.h]] to find keysym
 
     -- print screen
     [ ((0, xK_Print),
-       spawn $ "scrot -f ~/captures/%Y-%m-%d_%H:%M:%S.png")
+       spawn "scrot -f ~/captures/%Y-%m-%d_%H:%M:%S.png")
 
     -- print script select region
     , ((shiftMask, xK_Print),
-       spawn $ "scrot -s -f ~/captures/%Y-%m-%d_%H:%M:%S.png")
+       spawn "scrot -s -f ~/captures/%Y-%m-%d_%H:%M:%S.png")
 
     -- print screen select window
     , ((controlMask, xK_Print),
-       spawn $ "scrot -u -f ~/captures/\\$W.%Y-%m-%d_%H:%M:%S.png")
+       spawn "scrot -u -f ~/captures/\\$W.%Y-%m-%d_%H:%M:%S.png")
 
     ] ++
 
@@ -273,6 +299,24 @@ use [[/usr/include/X11/XF86keysym.h][XF86keysym.h]] to find keysym
     , ((modm, xK_c),
        spawn "rofi -show drun")
 
+    ] ++
+
+    --
+    -- meenoo
+    --
+
+    -- system meenoo
+    [ ((modm, xK_x),
+       xmSpawnMap $ M.fromList $
+	[ ("lock", "xsecurelock")
+	, ("sleep", "systemctl suspend")
+	, ("shutdown", "shutdown now")
+	, ("reboot", "reboot")
+	])
+
+    , ((modm, xK_r),
+       xmSpawnTerminal ["lf", "sbcl", "ghci", "deno", "python"])
+
     ]
 #+END_SRC
 
@@ -283,17 +327,15 @@ use [[/usr/include/X11/XF86keysym.h][XF86keysym.h]] to find keysym
 
     -- set window to float, and move by drag
     [ ((modm, button1),
-	(\w -> focus w >> mouseMoveWindow w
-		       >> windows W.shiftMaster))
+        (\w -> focus w >> mouseMoveWindow w))
 
     -- move the window to top of the stack
     , ((modm, button2),
-	(\w -> focus w >> windows W.shiftMaster))
+        (\w -> focus w >> windows W.shiftMaster))
 
     -- set window to float, and resize
     , ((modm, button3),
-	(\w -> focus w >> mouseResizeWindow w
-		       >> windows W.shiftMaster))
+        (\w -> focus w >> mouseResizeWindow w))
 
     ]
 #+END_SRC
@@ -322,23 +364,24 @@ use [[/usr/include/X11/XF86keysym.h][XF86keysym.h]] to find keysym
 
 #+BEGIN_SRC haskell
   xmLogHook xmproc = dynamicLogWithPP xmobarPP
-		     { ppOutput        = hPutStrLn xmproc
-		     , ppCurrent       = xmobarColor "#4CAF50" "" . wrap "{" "}"
-		     , ppHidden        = \x ->
-			 xmobarAction ("xdotool key Super+" ++ x) "1" $
-			 wrap " " " " $
-			 xmobarColor "#F0E68C" "" x
-		     , ppTitle         = xmobarColor "#2196F3" "" . shorten 80
-		     , ppTitleSanitize = xmobarStrip
-		     , ppSep           = " | "
-		     , ppWsSep         = ""
-		     , ppOrder         = \(ws:_:t:_) ->
-			 [ xmobarAction "xdotool key Super+bracketleft" "4" $
-			   xmobarAction "xdotool key Super+bracketright" "5" $
-			   ws
-			 , t
-			 ]
-		     }
+    { ppOutput        = hPutStrLn xmproc
+    , ppCurrent       = xmobarColor "#4CAF50" "" . wrap "{" "}"
+    , ppUrgent        = xmobarColor "#2196F3" ""
+    , ppHidden        = \x ->
+                          xmobarAction ("xdotool key Super+" ++ x) "1" $
+                          wrap " " " " $
+                          xmobarColor "#F0E68C" "" x
+    , ppTitle         = xmobarColor "#2196F3" "" . shorten 80
+    , ppTitleSanitize = xmobarStrip
+    , ppSep           = " | "
+    , ppWsSep         = ""
+    , ppOrder         = \(ws:_:t:_) ->
+                          [ xmobarAction "xdotool key Super+bracketleft" "4" $
+                            xmobarAction "xdotool key Super+bracketright" "5" $
+                            ws
+                          , t
+                          ]
+    }
 #+END_SRC
 
 * Startup Hook
@@ -350,27 +393,59 @@ use [[/usr/include/X11/XF86keysym.h][XF86keysym.h]] to find keysym
     spawnOnce "dunst"
 #+END_SRC
 
+* Event Hook
+
+Example for two shells: ~(className =? "Alacritty" <||> className =? "urxvt")~
+
+#+BEGIN_SRC haskell
+  xmHandleEventHook = swallowEventHook (className =? "Alacritty") (return True)
+#+END_SRC
+
 * Main body
 
 #+BEGIN_SRC haskell
   main = do
     xmproc <- spawnPipe "xmobar -x 0 ~/.config/xmonad/xmobar.hs"
-    xmonad $ ewmhFullscreen . ewmh . docks $ def {
+    xmonad $ ewmhFullscreen . ewmh . docks $ def
       -- variables
-      terminal = xmTerm,
-      focusFollowsMouse = xmFocusFollowsMouse,
-      clickJustFocuses = xmClickJustFocuses,
-      borderWidth = xmBorderWidth,
-      modMask = xmModMask,
-      workspaces = xmWorkspaces,
+      { terminal		= xmTerm
+      , focusFollowsMouse	= xmFocusFollowsMouse
+      , clickJustFocuses	= xmClickJustFocuses
+      , borderWidth		= xmBorderWidth
+      , modMask			= xmModMask
+      , workspaces		= xmWorkspaces
 
       -- bindings
-      keys = xmKeys,
-      mouseBindings = xmMouseBindings,
+      , keys			= xmKeys
+      , mouseBindings		= xmMouseBindings
 
       -- hooks
-      layoutHook = xmLayoutHook,
-      logHook = xmLogHook xmproc,
-      startupHook = xmStartupHook
+      , layoutHook		= xmLayoutHook
+      , logHook			= xmLogHook xmproc
+      , startupHook		= xmStartupHook
+      , handleEventHook		= xmHandleEventHook
       }
+#+END_SRC
+
+* Menus
+
+#+BEGIN_SRC haskell
+  -- spawn choice from map
+  xmSpawnMap :: M.Map String String -> X ()
+  xmSpawnMap choicesMap = do
+    (Just choice) <- dmenuMap choicesMap
+    spawn choice
+
+  -- spawn terminal with choice
+  xmSpawnTerminal :: [String] -> X ()
+  xmSpawnTerminal choicesArray = do
+    choice <- dmenu choicesArray
+    spawn $ xmTermExec choice
+#+END_SRC
+
+* Status
+
+#+BEGIN_SRC haskell
+  -- showVolume :: X ()
+  -- showVolume = do
 #+END_SRC
