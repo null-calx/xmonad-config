@@ -1,0 +1,10 @@
+#+TITLE: xmonad-config
+#+AUTHOR: calx
+
+* quickstart
+
+open [[./xmonad.org]] in emacs and press ~C-c C-v t~ to tangle ~xmonad.hs~ file.
+
+* note
+
+i no longer use xmonad, tho it is a cool window manager
